@@ -42,6 +42,32 @@
 			<artifactId>spring-boot-starter-test</artifactId>
 			<scope>test</scope>
 		</dependency>
+		<!-- https://mvnrepository.com/artifact/org.springframework.cloud/springcloud-starter-openfeign --> 
+		<dependency> 
+			<groupId>org.springframework.cloud</groupId> 
+			<artifactId>spring-cloud-starter-openfeign</artifactId> 
+			<version>4.1.3</version> 
+		</dependency>
+		<!-- Swagger -->
+		<dependency> 
+			<groupId>org.springdoc</groupId>
+			<artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+			<version>2.5.0</version>
+		</dependency> 
+		<!-- Security -->
+		<dependency> 
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-oauth2-resource-server</artifactId>
+		</dependency>
+		<dependency> 
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-security</artifactId>
+		</dependency>
+		<!-- RabbitMQ -->
+		<dependency> 
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-amqp</artifactId>
+		</dependency> 
 	</dependencies>
 
 	<build>
