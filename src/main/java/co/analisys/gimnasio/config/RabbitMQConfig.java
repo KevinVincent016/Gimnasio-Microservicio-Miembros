@@ -1,104 +1,62 @@
 package co.analisys.gimnasio.config;
 
-import co.analisys.gimnasio.messaging.MessagingNames;
-import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.amqp.core.*;
+import org.springframework.amqp.core.Binding;
+import org.springframework.amqp.core.BindingBuilder;
+import org.springframework.amqp.core.Queue;
+import org.springframework.amqp.core.TopicExchange;
 import org.springframework.amqp.rabbit.connection.ConnectionFactory;
-import org.springframework.amqp.rabbit.core.RabbitAdmin;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
-import org.springframework.boot.CommandLineRunner;
-import org.springframework.context.annotation.Bean;
+import org.springframework.amqp.support.converter.MessageConverter;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Bean;
 
 @Configuration
+@ConditionalOnProperty(name = "notifications.enabled", havingValue = "true", matchIfMissing = true)
 public class RabbitMQConfig {
 
     private static final Logger log = LoggerFactory.getLogger(RabbitMQConfig.class);
 
-    // --- Admin para declarar infraestructura ---
-    @Bean
-    public AmqpAdmin amqpAdmin(ConnectionFactory connectionFactory) {
-        RabbitAdmin admin = new RabbitAdmin(connectionFactory);
-        admin.setAutoStartup(true); // intenta autodeclarar al iniciar el contexto
-        return admin;
-    }
+    @Value("${app.notifications.exchange:miembros.notifications}")
+    private String exchangeName;
 
-    @PostConstruct
-    public void onStart() {
-        log.info(">>> RabbitMQConfig cargado: declarar exchange/queue/bindings");
-    }
+    @Value("${app.notifications.queue:miembros.signup.notifications}")
+    private String queueName;
 
-    // --- Exchange tipo topic ---
-    @Bean
-    public TopicExchange gimnasioExchange() {
-        return ExchangeBuilder.topicExchange(MessagingNames.EXCHANGE_GIMNASIO)
-                .durable(true)
-                .build();
-    }
+    @Value("${app.notifications.routing-key:miembros.signup}")
+    private String routingKey;
 
-    // --- Cola para eventos de clases ---
     @Bean
-    public Queue clasesEventsQueue() {
-        return QueueBuilder.durable(MessagingNames.QUEUE_CLASES_EVENTS).build();
-    }
-
-    // --- Bindings para los 3 tipos de eventos ---
-    @Bean
-    public Binding claseCreatedBinding(Queue clasesEventsQueue, TopicExchange gimnasioExchange) {
-        return BindingBuilder.bind(clasesEventsQueue)
-                .to(gimnasioExchange)
-                .with(MessagingNames.RK_CLASE_CREATED);
+    public TopicExchange notificationExchange() {
+        log.info("Configuring RabbitMQ Exchange: {}", exchangeName);
+        return new TopicExchange(exchangeName, true, false);
     }
 
     @Bean
-    public Binding claseUpdatedBinding(Queue clasesEventsQueue, TopicExchange gimnasioExchange) {
-        return BindingBuilder.bind(clasesEventsQueue)
-                .to(gimnasioExchange)
-                .with(MessagingNames.RK_CLASE_UPDATED);
+    public Queue memberSignupQueue() {
+        log.info("Configuring RabbitMQ Queue: {}", queueName);
+        return new Queue(queueName, true);
     }
 
     @Bean
-    public Binding claseDeletedBinding(Queue clasesEventsQueue, TopicExchange gimnasioExchange) {
-        return BindingBuilder.bind(clasesEventsQueue)
-                .to(gimnasioExchange)
-                .with(MessagingNames.RK_CLASE_DELETED);
-    }
-
-    // --- Converter + template JSON ---
-    @Bean
-    public Jackson2JsonMessageConverter jackson2JsonMessageConverter() {
-        return new Jackson2JsonMessageConverter();
+    public Binding memberSignupBinding(Queue memberSignupQueue, TopicExchange notificationExchange) {
+        log.info("Binding Queue '{}' to Exchange '{}' with routing key '{}'", queueName, exchangeName, routingKey);
+        return BindingBuilder.bind(memberSignupQueue).to(notificationExchange).with(routingKey);
     }
 
     @Bean
-    public RabbitTemplate rabbitTemplate(ConnectionFactory connectionFactory,
-                                         Jackson2JsonMessageConverter messageConverter) {
+    public MessageConverter jacksonMessageConverter(org.springframework.http.converter.json.Jackson2ObjectMapperBuilder builder) {
+        return new Jackson2JsonMessageConverter(builder.build());
+    }
+
+    @Bean
+    public RabbitTemplate rabbitTemplate(ConnectionFactory connectionFactory, MessageConverter jacksonMessageConverter) {
         RabbitTemplate template = new RabbitTemplate(connectionFactory);
-        template.setMessageConverter(messageConverter);
+        template.setMessageConverter(jacksonMessageConverter);
         return template;
-    }
-
-    // --- (NUEVO) Declaración explícita al arrancar ---
-    @Bean
-    public CommandLineRunner declareInfra(
-            AmqpAdmin admin,
-            TopicExchange gimnasioExchange,
-            Queue clasesEventsQueue,
-            Binding claseCreatedBinding,
-            Binding claseUpdatedBinding,
-            Binding claseDeletedBinding
-    ) {
-        return args -> {
-            log.info("Declarando infraestructura RabbitMQ…");
-            admin.declareExchange(gimnasioExchange);
-            admin.declareQueue(clasesEventsQueue);
-            admin.declareBinding(claseCreatedBinding);
-            admin.declareBinding(claseUpdatedBinding);
-            admin.declareBinding(claseDeletedBinding);
-            log.info("Infraestructura RabbitMQ declarada ✅");
-        };
     }
 }
